@@ -213,7 +213,8 @@ func (p AppSession) Id() SessionKey { return p.uid }
 
 type GameSession struct {
 	AppSession
-	Index int // track user Index (i.e. player 1,2,3,4 select)
+	Index int // track user Index (i.e. player 1,2,3,4 select), -1 for a cabinet watcher
+	order int // cabinet join order, 0 when not in a cabinet
 }
 
 func NewGameSession(id string, s Session) *GameSession {

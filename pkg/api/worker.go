@@ -19,6 +19,7 @@ type (
 		RecordUser  string
 		Game        string `json:"game"`
 		PlayerIndex int    `json:"player_index"`
+		Players     int    `json:"players,omitempty"`
 	}
 	GameInfo struct {
 		Alias  string `json:"alias"`
@@ -33,6 +34,7 @@ type (
 		AV      *AppVideoInfo `json:"av"`
 		Record  bool          `json:"record"`
 		KbMouse bool          `json:"kb_mouse"`
+		Slot    *Slot         `json:"slot,omitempty"`
 	}
 	RecordGameRequest struct {
 		StatefulRoom
@@ -62,6 +64,13 @@ type (
 		SM   string  `json:"sm,omitempty"`
 		Flip bool    `json:"flip"`
 		Rot  uint    `json:"rot"`
+	}
+
+	// Slot is where a user stands in a cabinet room: player Index (0-based),
+	// or a watcher (Index -1) at position Queue in line.
+	Slot struct {
+		Index int `json:"index"`
+		Queue int `json:"queue,omitempty"`
 	}
 
 	LibGameListInfo struct {

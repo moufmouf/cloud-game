@@ -19,6 +19,7 @@ func (w *Worker) StartGame(id string, req api.GameStartUserRequest) (*api.StartG
 			StatefulRoom: api.StatefulRoom{Id: id, Rid: req.RoomId},
 			Game:         req.GameName,
 			PlayerIndex:  req.PlayerIndex,
+			Players:      req.Players,
 			Record:       req.Record,
 			RecordUser:   req.RecordUser,
 		}))
