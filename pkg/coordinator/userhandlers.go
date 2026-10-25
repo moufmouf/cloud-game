@@ -27,16 +27,14 @@ func (u *User) HandleWebrtcSignal(rq api.WebrtcSignalUser) {
 
 func (u *User) HandleStartGame(rq api.GameStartUserRequest, conf config.CoordinatorConfig) {
 	// Worker slot / room gating:
-	// - If the worker is BUSY (no free slot), we must not create another room.
-	//   * If the worker has already reported a room id, only allow requests
-	//     for that same room (deep-link joins / reloads).
-	//   * If the worker hasn't reported a room yet, deny any new StartGame to
-	//     avoid racing concurrent room creation on the worker.
-	//   * When the user is starting a NEW game (empty room id), we give the
-	//     worker a short grace period to close the previous room and free the
-	//     slot before rejecting with "no slots".
-	// - If the worker is FREE, reserve the slot lazily before starting the
-	//   game; the room id (if any) comes from the request / worker.
+	// - If the worker is FREE, reserve its single slot and start the game.
+	// - If it is BUSY, only let through requests for the room it runs, or is
+	//   about to run (claimed in findWorkerFor but still loading). The worker
+	//   handles StartGame calls one at a time, so a join that arrives during
+	//   the load is answered once the room exists.
+	//   When the user is starting a NEW game (empty room id), we give the
+	//   worker a short grace period to close the previous room and free the
+	//   slot before rejecting with "no slots".
 
 	// Grace period: when there's no room id in the request (new game) but the
 	// worker still appears busy, wait a bit for the previous room to close.
@@ -53,27 +51,9 @@ func (u *User) HandleStartGame(rq api.GameStartUserRequest, conf config.Coordina
 		}
 	}
 
-	busy := !u.w.HasSlot()
-	if busy {
-		if u.w.RoomId == "" {
-			u.Notify(api.ErrNoFreeSlots, "")
-			return
-		}
-		// if rq.RoomId == "" {
-		// 	// No room id but worker is busy -> assume user wants to continue
-		// 	// the existing room instead of starting a parallel game.
-		// 	rq.RoomId = u.w.RoomId
-		// } else
-		if rq.RoomId != u.w.RoomId {
-			u.Notify(api.ErrNoFreeSlots, "")
-			return
-		}
-	} else {
-		// Worker is free: try to reserve the single slot for this new room.
-		if !u.w.TryReserve() {
-			u.Notify(api.ErrNoFreeSlots, "")
-			return
-		}
+	if !u.w.TryReserve() && !u.w.Hosts(rq.RoomId) {
+		u.Notify(api.ErrNoFreeSlots, "")
+		return
 	}
 
 	startGameResp, err := u.w.StartGame(u.Id().String(), rq)

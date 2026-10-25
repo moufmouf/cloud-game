@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/giongto35/cloud-game/v3/pkg/api"
 	"github.com/giongto35/cloud-game/v3/pkg/com"
@@ -26,6 +27,8 @@ type Hub struct {
 	log     *logger.Logger
 	users   com.NetMap[com.Uid, *User]
 	workers com.NetMap[com.Uid, *Worker]
+
+	claimMu sync.Mutex // ponytail: one lock for every room claim, per-room locks if it ever contends
 }
 
 func NewHub(conf config.CoordinatorConfig, log *logger.Logger) *Hub {
@@ -214,6 +217,23 @@ func (h *Hub) findWorkerFor(usr *User, q url.Values, log *logger.Logger) *Worker
 			}
 		}
 	}
+	if worker == nil || roomIdRaw == "" {
+		return worker
+	}
+
+	// Claim the worker for the room, so that users arriving before the room is
+	// registered land on the same worker instead of starting a second game.
+	h.claimMu.Lock()
+	defer h.claimMu.Unlock()
+	if w := h.findWorkerByRoom(roomIdRaw, roomId, zone); w != nil {
+		return w // claimed by someone arriving at the same time
+	}
+	if worker.pending.Get() != "" { // claimed for another room meanwhile
+		if worker = h.find1stFreeWorker(zone); worker == nil {
+			return nil
+		}
+	}
+	worker.pending.Set(roomIdRaw)
 	return worker
 }
 
@@ -235,7 +255,7 @@ func (h *Hub) findWorkerByRoom(id string, deepId string, region string) *Worker 
 	// if there is zone param, we need to ensure the worker in that zone,
 	// if not we consider the room is missing
 	w, _ := h.workers.FindBy(func(w *Worker) bool {
-		matchId := w.RoomId == id
+		matchId := w.Hosts(id)
 		if !matchId && deepId != "" {
 			matchId = w.RoomId == deepId
 		}
@@ -247,7 +267,7 @@ func (h *Hub) findWorkerByRoom(id string, deepId string, region string) *Worker 
 func (h *Hub) getAvailableWorkers(region string) []*Worker {
 	var workers []*Worker
 	for w := range h.workers.Values() {
-		if w.HasSlot() && w.In(region) {
+		if w.HasSlot() && w.In(region) && w.pending.Get() == "" {
 			workers = append(workers, w)
 		}
 	}
