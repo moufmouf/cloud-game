@@ -9,6 +9,7 @@ import (
 	"github.com/giongto35/cloud-game/v3/pkg/games"
 	"github.com/giongto35/cloud-game/v3/pkg/network/webrtc"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/caged"
+	"github.com/giongto35/cloud-game/v3/pkg/worker/caged/libretro/nanoarch"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/media"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/room"
 )
@@ -278,7 +279,7 @@ func (c *coordinator) HandleLoadGame(rq api.LoadGameRequest, w *Worker) api.Out 
 
 func (c *coordinator) HandleChangePlayer(rq api.ChangePlayerRequest, w *Worker) api.Out {
 	user := w.router.FindUser(rq.Id)
-	if user == nil || w.router.FindRoom(rq.Rid) == nil {
+	if user == nil || w.router.FindRoom(rq.Rid) == nil || rq.Index < 0 || rq.Index >= nanoarch.MaxPort {
 		return api.Out{Payload: -1} // semi-predicates
 	}
 	user.Index = rq.Index

@@ -20,7 +20,7 @@ void input_cache_clear(void);
 import "C"
 
 const (
-	maxPort    = 4
+	MaxPort    = 4
 	numAxes    = 4
 	RetrokLast = int(C.RETROK_LAST)
 )
@@ -50,17 +50,18 @@ const (
 //   - uint16 button bitmask
 //   - int16 analog axes x4 (left stick, right stick)
 //   - int16 analog triggers x2 (L2, R2)
-type InputState [maxPort]struct {
+type InputState [MaxPort]struct {
 	keys     uint32 // lower 16 bits used
 	axes     int64  // packed: [LX:16][LY:16][RX:16][RY:16]
 	triggers int32  // packed: [L2:16][R2:16]
 }
 
 // SetInput sets input state for a player.
+// The port comes from the client, so an out-of-range one is dropped.
 //
 //	[BTN:2][LX:2][LY:2][RX:2][RY:2][L2:2][R2:2]
 func (s *InputState) SetInput(port int, data []byte) {
-	if len(data) < 2 {
+	if port < 0 || port >= MaxPort || len(data) < 2 {
 		return
 	}
 
@@ -85,7 +86,7 @@ func (s *InputState) SetInput(port int, data []byte) {
 
 // SyncToCache syncs input state to C-side cache before Run().
 func (s *InputState) SyncToCache() {
-	for p := range uint(maxPort) {
+	for p := range uint(MaxPort) {
 		keys := atomic.LoadUint32(&s[p].keys)
 		axes := atomic.LoadInt64(&s[p].axes)
 		triggers := atomic.LoadInt32(&s[p].triggers)
@@ -116,6 +117,9 @@ func (ks *KeyboardState) SetKey(data []byte) (pressed bool, key uint, mod uint16
 		return
 	}
 	key = uint(binary.BigEndian.Uint32(data))
+	if key >= uint(RetrokLast) {
+		return false, 0, 0
+	}
 	mod = binary.BigEndian.Uint16(data[5:])
 	pressed = data[4] == 1
 
