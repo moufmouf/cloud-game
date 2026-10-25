@@ -2,11 +2,16 @@ package coordinator
 
 import "github.com/giongto35/cloud-game/v3/pkg/api"
 
-func (w *Worker) HandleRegisterRoom(rq api.RegisterRoomRequest) { w.RoomId = string(rq) }
+func (w *Worker) HandleRegisterRoom(rq api.RegisterRoomRequest) {
+	w.RoomId = string(rq)
+	w.pending.Set("")
+}
 
+// HandleCloseRoom also frees a room that never registered (it failed to load).
 func (w *Worker) HandleCloseRoom(rq api.CloseRoomRequest) {
-	if string(rq) == w.RoomId {
+	if id := string(rq); id == w.RoomId || id == w.pending.Get() {
 		w.RoomId = ""
+		w.pending.Set("")
 		w.FreeSlots()
 	}
 }
