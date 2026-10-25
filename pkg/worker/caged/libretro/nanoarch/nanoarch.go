@@ -356,7 +356,7 @@ func (n *Nanoarch) LoadGame(path string) error {
 
 	// set default controller types on all ports
 	// needed for nestopia
-	for i := range maxPort {
+	for i := range MaxPort {
 		C.bridge_retro_set_controller_port_device(retroSetControllerPortDevice, C.uint(i), C.RETRO_DEVICE_JOYPAD)
 	}
 

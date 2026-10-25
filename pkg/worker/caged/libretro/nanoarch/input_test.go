@@ -175,7 +175,7 @@ func TestInputState_Concurrent(t *testing.T) {
 	wg.Add(events)
 
 	for range events {
-		player := rand.Intn(maxPort)
+		player := rand.Intn(MaxPort)
 		go func() {
 			// Full 14-byte input
 			state.SetInput(player, []byte{0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0})
@@ -221,6 +221,10 @@ func TestKeyboardState_SetKey(t *testing.T) {
 			key:     0,
 			mod:     0,
 		},
+		{
+			name: "key out of range",
+			data: []byte{0xFF, 0xFF, 0xFF, 0xFF, 1, 0, 0},
+		},
 	}
 
 	for _, test := range tests {
@@ -238,6 +242,18 @@ func TestKeyboardState_SetKey(t *testing.T) {
 				t.Errorf("mod: got %v, want %v", mod, test.mod)
 			}
 		})
+	}
+}
+
+func TestInputState_SetInputOutOfRangePort(t *testing.T) {
+	var s InputState
+	for _, port := range []int{-1, MaxPort, 1 << 20} {
+		s.SetInput(port, []byte{0xFF, 0xFF}) // must not panic
+	}
+	for p := range s {
+		if s[p].keys != 0 {
+			t.Errorf("port %d: got keys %x, want none", p, s[p].keys)
+		}
 	}
 }
 
@@ -509,7 +525,7 @@ func TestConstants(t *testing.T) {
 	}
 
 	// Limits
-	if maxPort != 4 || numAxes != 4 || RetrokLast != 342 {
+	if MaxPort != 4 || numAxes != 4 || RetrokLast != 342 {
 		t.Error("invalid limit constants")
 	}
 }
