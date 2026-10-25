@@ -10,11 +10,15 @@ type (
 		RecordUser  string `json:"record_user,omitempty"`
 		PlayerIndex int    `json:"player_index"`
 		Record      bool   `json:"record,omitempty"`
+		// Players > 0 makes a new room a cabinet with that many player slots:
+		// the worker assigns them and everyone else watches.
+		Players int `json:"players,omitempty"`
 	}
 	GameStartUserResponse struct {
 		Av      *AppVideoInfo `json:"av"`
 		RoomId  string        `json:"roomId"`
 		KbMouse bool          `json:"kb_mouse"`
+		Slot    *Slot         `json:"slot,omitempty"`
 	}
 	IceServer struct {
 		Urls       string `json:"urls,omitempty"`

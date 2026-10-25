@@ -66,7 +66,7 @@ func (u *User) HandleStartGame(rq api.GameStartUserRequest, conf config.Coordina
 		return
 	}
 	u.log.Info().Str("id", startGameResp.Rid).Msg("Received room response from worker")
-	u.StartGame(startGameResp.AV, startGameResp.KbMouse)
+	u.StartGame(startGameResp.AV, startGameResp.KbMouse, startGameResp.Slot)
 
 	// send back recording status
 	if conf.Recording.Enabled && rq.Record {
