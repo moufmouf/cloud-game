@@ -84,6 +84,7 @@ const (
 	CloseRoom        PT = 202
 	TerminateSession PT = 204
 	AppVideoChange   PT = 150
+	SlotChange       PT = 151
 	LibNewGameList   PT = 205
 	PrevSessions     PT = 206
 )
@@ -124,6 +125,8 @@ func (p PT) String() string {
 		return "TerminateSession"
 	case AppVideoChange:
 		return "AppVideoChange"
+	case SlotChange:
+		return "SlotChange"
 	case LibNewGameList:
 		return "LibNewGameList"
 	case PrevSessions:

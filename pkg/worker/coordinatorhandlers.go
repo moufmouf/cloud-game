@@ -81,7 +81,6 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 		c.log.Error().Msgf("no user [%v]", rq.Id)
 		return api.EmptyPacket
 	}
-	user.Index = rq.PlayerIndex
 
 	r := w.router.FindRoom(rq.Rid)
 
@@ -122,6 +121,7 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 			return api.EmptyPacket
 		}
 
+		w.router.SetPlayers(min(rq.Players, nanoarch.MaxPort))
 		w.router.SetRoom(r)
 		c.log.Info().Str("room", r.Id()).Str("game", game.Name).Msg("New room")
 
@@ -196,13 +196,29 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 		r.StartApp()
 	}
 
+	var slot *api.Slot
+	if w.router.Cabinet() {
+		s := w.router.Seat(user)
+		slot = &s
+	} else {
+		user.Index = rq.PlayerIndex
+	}
+
 	needsKbMouse := r.App().KbMouseSupport()
 
+	// watchers (index -1) send nothing to the game
+	input := func(device byte) func([]byte) {
+		return func(data []byte) {
+			if i := user.Index; i >= 0 {
+				r.App().Input(i, device, data)
+			}
+		}
+	}
 	s := room.WithWebRTC(user.Session)
-	s.OnMessage(func(data []byte) { r.App().Input(user.Index, byte(caged.RetroPad), data) })
+	s.OnMessage(input(byte(caged.RetroPad)))
 	if needsKbMouse {
-		_, _ = s.Channel("keyboard", nil, func(data []byte) { r.App().Input(user.Index, byte(caged.Keyboard), data) })
-		_, _ = s.Channel("mouse", nil, func(data []byte) { r.App().Input(user.Index, byte(caged.Mouse), data) })
+		_, _ = s.Channel("keyboard", nil, input(byte(caged.Keyboard)))
+		_, _ = s.Channel("mouse", nil, input(byte(caged.Mouse)))
 	}
 
 	c.RegisterRoom(r.Id())
@@ -211,6 +227,7 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 		Room:    api.Room{Rid: r.Id()},
 		Record:  w.conf.Recording.Enabled,
 		KbMouse: needsKbMouse,
+		Slot:    slot,
 	}
 
 	if r.App().AspectEnabled() {
@@ -255,7 +272,7 @@ func (c *coordinator) HandleResetGame(rq api.ResetGameRequest, w *Worker) api.Ou
 
 func (c *coordinator) HandleSaveGame(rq api.SaveGameRequest, w *Worker) api.Out {
 	r := w.router.FindRoom(rq.Rid)
-	if r == nil {
+	if r == nil || w.router.Cabinet() { // cabinets always start fresh
 		return api.ErrPacket
 	}
 	if err := room.WithEmulator(r.App()).SaveGameState(); err != nil {
@@ -267,7 +284,7 @@ func (c *coordinator) HandleSaveGame(rq api.SaveGameRequest, w *Worker) api.Out 
 
 func (c *coordinator) HandleLoadGame(rq api.LoadGameRequest, w *Worker) api.Out {
 	r := w.router.FindRoom(rq.Rid)
-	if r == nil {
+	if r == nil || w.router.Cabinet() {
 		return api.ErrPacket
 	}
 	if err := room.WithEmulator(r.App()).RestoreGameState(); err != nil {
@@ -279,7 +296,8 @@ func (c *coordinator) HandleLoadGame(rq api.LoadGameRequest, w *Worker) api.Out 
 
 func (c *coordinator) HandleChangePlayer(rq api.ChangePlayerRequest, w *Worker) api.Out {
 	user := w.router.FindUser(rq.Id)
-	if user == nil || w.router.FindRoom(rq.Rid) == nil || rq.Index < 0 || rq.Index >= nanoarch.MaxPort {
+	if user == nil || w.router.FindRoom(rq.Rid) == nil || rq.Index < 0 || rq.Index >= nanoarch.MaxPort ||
+		w.router.Cabinet() { // the worker assigns cabinet slots
 		return api.Out{Payload: -1} // semi-predicates
 	}
 	user.Index = rq.Index
@@ -288,7 +306,7 @@ func (c *coordinator) HandleChangePlayer(rq api.ChangePlayerRequest, w *Worker) 
 }
 
 func (c *coordinator) HandleRecordGame(rq api.RecordGameRequest, w *Worker) api.Out {
-	if !w.conf.Recording.Enabled {
+	if !w.conf.Recording.Enabled || w.router.Cabinet() {
 		return api.ErrPacket
 	}
 	r := w.router.FindRoom(rq.Rid)

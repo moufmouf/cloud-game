@@ -8,6 +8,7 @@ import (
 
 type GameRouter struct {
 	Router[*GameSession]
+	cab cabinet
 }
 
 func NewGameRouter() *GameRouter {
