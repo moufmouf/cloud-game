@@ -1,0 +1,268 @@
+// The cabinet page: one game, a status badge, keyboard and gamepad. See cabinet.html.
+import { api } from "api";
+import { sub, CONTROLLER_UPDATED, MESSAGE } from "event";
+import { KEY } from "input";
+import { retropad } from "./input/retropad.js?v=3";
+import { log } from "log";
+import { socket, webrtc } from "network";
+
+const SLOT_CHANGE = 151;
+const COLORS = ["#ef5350", "#42a5f5", "#66bb6a", "#ffee58"];
+
+const params = new URLSearchParams(location.search);
+const cabinet = params.get("cabinet") || "cabinet";
+const game = params.get("game") || "";
+const players = Math.min(Math.max(parseInt(params.get("players")) || 4, 1), 4);
+
+const video = document.getElementById("stream");
+const badge = document.getElementById("badge");
+const hint = document.getElementById("hint");
+
+let slot = null; // {index, queue}: index -1 is a watcher
+let status = "Connecting…";
+let playing = false;
+
+const render = () => {
+    const isPlayer = slot?.index >= 0;
+    badge.textContent = !slot
+        ? status
+        : isPlayer
+          ? `P${slot.index + 1}`
+          : `Watching · #${slot.queue} in line`;
+    badge.classList.toggle("player", isPlayer);
+    badge.style.background = isPlayer ? COLORS[slot.index] : "";
+
+    // a click both focuses the iframe and allows sound
+    let text = "";
+    if (isPlayer && !document.hasFocus()) text = "Click to play";
+    else if (playing && video.muted) text = "Click for sound";
+    hint.textContent = text;
+    hint.hidden = !text;
+};
+
+const setStatus = (s) => {
+    slot = null;
+    status = s;
+    render();
+};
+
+// The room id: the same for everyone at this cabinet of this map, different elsewhere.
+// Without the WorkAdventure API (outside WA, or no allowAPI), it falls back to the cabinet name.
+const waRoomId = () =>
+    new Promise((resolve) => {
+        if (!window.WA) return resolve("");
+        setTimeout(() => resolve(""), 3000);
+        WA.onInit().then(
+            () => resolve(WA.room.id),
+            () => resolve(""),
+        );
+    });
+
+const sha256 = async (s) =>
+    [
+        ...new Uint8Array(
+            await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)),
+        ),
+    ]
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+// video
+
+const play = () => {
+    video.muted = false;
+    video
+        .play()
+        .catch(() => {
+            // no sound before the user interacts with the page
+            video.muted = true;
+            return video.play();
+        })
+        .then(
+            () => (playing = true),
+            (e) => log.error("[cabinet] play", e),
+        )
+        .finally(render);
+};
+
+let serverAspect = 0;
+// ponytail: av.rot (vertical arcade games) is ignored, add when such a core is on a cabinet
+const setVideo = (av) => {
+    serverAspect = av.a || 0;
+    if (serverAspect) video.style.setProperty("--a", serverAspect);
+    video.style.transform = av.flip ? "scaleY(-1)" : "";
+};
+video.addEventListener("resize", () => {
+    if (!serverAspect && video.videoHeight)
+        video.style.setProperty("--a", video.videoWidth / video.videoHeight);
+});
+
+const unmute = () => {
+    if (playing && video.muted) {
+        video.muted = false;
+        render();
+    }
+};
+addEventListener("pointerdown", unmute);
+addEventListener("focus", render);
+addEventListener("blur", render);
+
+// input: game keys only
+
+const keyMap = {
+    ArrowUp: KEY.UP,
+    ArrowDown: KEY.DOWN,
+    ArrowLeft: KEY.LEFT,
+    ArrowRight: KEY.RIGHT,
+    KeyZ: KEY.A,
+    KeyX: KEY.B,
+    KeyC: KEY.X,
+    KeyV: KEY.Y,
+    KeyA: KEY.L,
+    KeyS: KEY.R,
+    Semicolon: KEY.L2,
+    Quote: KEY.R2,
+    Period: KEY.L3,
+    Slash: KEY.R3,
+    Enter: KEY.START,
+    ShiftLeft: KEY.SELECT,
+    ShiftRight: KEY.SELECT,
+};
+
+// W3C standard gamepad buttons, by position (bottom button = B, as on a SNES pad)
+const padMap = [
+    KEY.B,
+    KEY.A,
+    KEY.Y,
+    KEY.X,
+    KEY.L,
+    KEY.R,
+    KEY.L2,
+    KEY.R2,
+    KEY.SELECT,
+    KEY.START,
+    KEY.L3,
+    KEY.R3,
+    KEY.UP,
+    KEY.DOWN,
+    KEY.LEFT,
+    KEY.RIGHT,
+];
+
+const held = { kb: new Set(), pad: new Set() };
+const hold = (from, key, on) => {
+    on ? held[from].add(key) : held[from].delete(key);
+    retropad.setKeyState(key, held.kb.has(key) || held.pad.has(key));
+};
+
+const onKey = (on) => (e) => {
+    const key = keyMap[e.code];
+    if (on) unmute();
+    if (!key) return;
+    e.preventDefault();
+    if (!e.repeat) hold("kb", key, on);
+};
+addEventListener("keydown", onKey(true));
+addEventListener("keyup", onKey(false));
+addEventListener("blur", () => held.kb.forEach((k) => hold("kb", k, false)));
+
+const pollPads = () => {
+    const now = new Set();
+    for (const pad of navigator.getGamepads?.() || []) {
+        if (!pad) continue;
+        pad.buttons.forEach(
+            (b, i) => b.pressed && padMap[i] && now.add(padMap[i]),
+        );
+        const [x = 0, y = 0] = pad.axes; // the left stick works as a d-pad too
+        if (x < -0.5) now.add(KEY.LEFT);
+        if (x > 0.5) now.add(KEY.RIGHT);
+        if (y < -0.5) now.add(KEY.UP);
+        if (y > 0.5) now.add(KEY.DOWN);
+        pad.axes
+            .slice(0, 4)
+            .forEach((v, i) =>
+                retropad.setAxisChanged(i, Math.abs(v) < 0.1 ? 0 : v),
+            );
+    }
+    held.pad.forEach((k) => now.has(k) || hold("pad", k, false));
+    now.forEach((k) => held.pad.has(k) || hold("pad", k, true));
+    requestAnimationFrame(pollPads);
+};
+
+sub(CONTROLLER_UPDATED, (data) => webrtc.send("data", data));
+
+// connection
+
+let started = false;
+let roomId = "";
+
+const onMessage = ({ t, p }) => {
+    switch (t) {
+        case api.endpoint.INIT:
+            webrtc.start({
+                iceServers: p.ice,
+                media: video,
+                onDataChannel: (ch) => {
+                    if (ch.label === "data")
+                        ch.onmessage = (x) => onMessage(api.fromBytes(x.data));
+                    return ch;
+                },
+                onConnect: () => {
+                    if (started) return; // ICE restarts reconnect too
+                    started = true;
+                    socket.send({
+                        t: api.endpoint.GAME_START,
+                        p: { game_name: game, room_id: roomId, players },
+                    });
+                },
+                onDisconnect: () => {
+                    webrtc.stop();
+                    setStatus("Disconnected, reload to retry");
+                },
+                signalling: {
+                    init: api.server.initWebrtcStream,
+                    sendIceCandidate: api.server.sendIceCandidate,
+                    sendSdp: api.server.sendSdp,
+                },
+            });
+            break;
+        case api.endpoint.WEBRTC_SIGNAL:
+            if (Object.hasOwn(p, "ice"))
+                webrtc.candidate(p.ice ? api.fromJson(p.ice) : "");
+            else if (Object.hasOwn(p, "sdp"))
+                webrtc.answer(api.fromJson(p.sdp));
+            break;
+        case api.endpoint.GAME_START:
+            if (p.av) setVideo(p.av);
+            slot = p.slot || { index: 0 };
+            retropad.toggle(true);
+            requestAnimationFrame(pollPads);
+            play();
+            break;
+        case api.endpoint.APP_VIDEO_CHANGE:
+            setVideo(p);
+            break;
+        case SLOT_CHANGE:
+            slot = p;
+            render();
+            break;
+        case api.endpoint.GAME_ERROR_NO_FREE_SLOTS:
+            setStatus("All game machines are busy, try again later");
+            break;
+    }
+};
+sub(MESSAGE, onMessage);
+
+api.transport = {
+    send: socket.send,
+    keyboard: () => {},
+    mouse: () => {},
+};
+
+if (!game) {
+    setStatus("No game set in the cabinet URL");
+} else {
+    roomId = `${(await sha256(`${await waRoomId()}|${cabinet}`)).slice(0, 16)}___${game}`;
+    log.info(`[cabinet] room ${roomId}`);
+    socket.init(roomId);
+}

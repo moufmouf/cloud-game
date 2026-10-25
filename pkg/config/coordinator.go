@@ -23,6 +23,8 @@ type Coordinator struct {
 	}
 	Selector string
 	Server   Server
+	// WaIframeApi is the WorkAdventure iframe API script that cabinet.html loads.
+	WaIframeApi string
 }
 
 // Analytics is optional Google Analytics

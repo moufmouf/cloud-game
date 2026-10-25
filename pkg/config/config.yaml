@@ -81,6 +81,9 @@ coordinator:
     analytics:
         inject: false
         gtag:
+    # cabinet.html (a game embedded in a WorkAdventure map) loads the WorkAdventure
+    # iframe API from here, to tell the cabinets of different maps apart
+    waIframeApi: https://play.workadventu.re/iframe_api.js
 
 worker:
     # show more logs

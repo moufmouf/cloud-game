@@ -67,19 +67,32 @@ func NewHTTPServer(conf config.CoordinatorConfig, log *logger.Logger, fnMux func
 }
 
 func index(conf config.CoordinatorConfig, log *logger.Logger) httpx.Handler {
-	const indexHTML = "./web/index.html"
+	parse := func() *template.Template {
+		return template.Must(template.ParseFiles("./web/index.html", "./web/cabinet.html"))
+	}
+	pagesTpl := parse()
 
-	indexTpl := template.Must(template.ParseFiles(indexHTML))
-
-	// render index page with some tpl values
+	// render the pages with some tpl values
 	tplData := struct {
-		Analytics config.Analytics
-		Recording config.Recording
-	}{conf.Coordinator.Analytics, conf.Recording}
+		Analytics   config.Analytics
+		Recording   config.Recording
+		WaIframeApi string
+	}{conf.Coordinator.Analytics, conf.Recording, conf.Coordinator.WaIframeApi}
 
-	handler := func(tpl *template.Template, w httpx.ResponseWriter, r *httpx.Request) {
-		if err := tpl.Execute(w, tplData); err != nil {
-			log.Error().Err(err).Msg("error with the analytics template file")
+	// page is the template name of the path, or "" for a static file
+	page := func(path string) string {
+		if path == "/" || strings.HasSuffix(path, "/index.html") {
+			return "index.html"
+		}
+		if strings.HasSuffix(path, "/cabinet.html") {
+			return "cabinet.html"
+		}
+		return ""
+	}
+
+	handler := func(tpl *template.Template, name string, w httpx.ResponseWriter, r *httpx.Request) {
+		if err := tpl.ExecuteTemplate(w, name, tplData); err != nil {
+			log.Error().Err(err).Msgf("error with the %v template file", name)
 		}
 	}
 
@@ -94,9 +107,8 @@ func index(conf config.CoordinatorConfig, log *logger.Logger) httpx.Handler {
 			if conf.Coordinator.Server.FrameOptions != "" {
 				w.Header().Add("X-Frame-Options", conf.Coordinator.Server.FrameOptions)
 			}
-			if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, "/index.html") {
-				tpl := template.Must(template.ParseFiles(indexHTML))
-				handler(tpl, w, r)
+			if name := page(r.URL.Path); name != "" {
+				handler(parse(), name, w, r)
 				return
 			}
 			h.ServeHTTP(w, r)
@@ -110,8 +122,8 @@ func index(conf config.CoordinatorConfig, log *logger.Logger) httpx.Handler {
 		if conf.Coordinator.Server.FrameOptions != "" {
 			w.Header().Add("X-Frame-Options", conf.Coordinator.Server.FrameOptions)
 		}
-		if r.URL.Path == "/" || strings.HasSuffix(r.URL.Path, "/index.html") {
-			handler(indexTpl, w, r)
+		if name := page(r.URL.Path); name != "" {
+			handler(pagesTpl, name, w, r)
 			return
 		}
 		h.ServeHTTP(w, r)
