@@ -10,6 +10,7 @@ import (
 	"github.com/giongto35/cloud-game/v3/pkg/logger"
 	"github.com/giongto35/cloud-game/v3/pkg/monitoring"
 	"github.com/giongto35/cloud-game/v3/pkg/network/httpx"
+	"github.com/giongto35/cloud-game/v3/pkg/network/webrtc"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/caged"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/cloud"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/room"
@@ -24,6 +25,7 @@ type Worker struct {
 	log      *logger.Logger
 	mana     *caged.Manager
 	router   *room.GameRouter
+	rtc      *webrtc.ApiFactory // one per process: it owns the single-port UDP socket
 	services [2]interface {
 		Run()
 		Stop() error
@@ -40,6 +42,11 @@ func New(conf config.WorkerConfig, log *logger.Logger) (*Worker, error) {
 	library := games.NewLib(conf.Library, conf.Emulator, log)
 	library.Scan()
 
+	rtc, err := webrtc.NewApiFactory(conf.Webrtc, log, nil)
+	if err != nil {
+		return nil, fmt.Errorf("webrtc init fail: %w", err)
+	}
+
 	worker := &Worker{
 		conf:     conf,
 		lib:      library,
@@ -47,6 +54,7 @@ func New(conf config.WorkerConfig, log *logger.Logger) (*Worker, error) {
 		log:      log,
 		mana:     manager,
 		router:   room.NewGameRouter(),
+		rtc:      rtc,
 	}
 
 	h, err := httpx.NewServer(
