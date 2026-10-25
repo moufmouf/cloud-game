@@ -3,7 +3,9 @@ package coordinator
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/giongto35/cloud-game/v3/pkg/api"
 	"github.com/giongto35/cloud-game/v3/pkg/com"
@@ -27,8 +29,42 @@ type Worker struct {
 	Lib      []api.GameInfo
 	Sessions map[string]struct{}
 
+	pending pendingRoom
+
 	log *logger.Logger
 }
+
+// pendingRoomTTL bounds how long a worker stays held for a room that never
+// starts (the user left before StartGame).
+const pendingRoomTTL = 60 * time.Second
+
+// pendingRoom is the room a worker was picked for but hasn't registered yet.
+// A room only shows up in RoomId once the worker has loaded it, so without
+// this, users arriving together would each get a free worker and a separate
+// game with the same room id.
+type pendingRoom struct {
+	mu    sync.Mutex
+	id    string
+	until time.Time
+}
+
+func (p *pendingRoom) Get() string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if time.Now().After(p.until) {
+		return ""
+	}
+	return p.id
+}
+
+func (p *pendingRoom) Set(id string) {
+	p.mu.Lock()
+	p.id, p.until = id, time.Now().Add(pendingRoomTTL)
+	p.mu.Unlock()
+}
+
+// Hosts tells whether the worker runs the room or is about to.
+func (w *Worker) Hosts(id string) bool { return id != "" && (w.RoomId == id || w.pending.Get() == id) }
 
 type RegionalClient interface {
 	In(region string) bool
