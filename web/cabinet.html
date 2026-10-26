@@ -72,6 +72,10 @@
             display: block;
         }
 
+        .other-layout {
+            opacity: .7;
+        }
+
         #hint {
             position: fixed;
             padding: 8px 16px;
@@ -88,8 +92,9 @@
 <div id="help" class="corner">?
     <div>
         <b>Arrows</b> move<br>
-        <b>Z X C V</b> A B X Y<br>
-        <b>A S</b> L R<br>
+        <!-- keys are bound by position: cabinet.js puts the player's own letters here when the browser tells it -->
+        <b data-codes="KeyZ KeyX KeyC KeyV">Z X C V</b> A B X Y <span class="other-layout">(AZERTY: W X C V)</span><br>
+        <b data-codes="KeyA KeyS">A S</b> L R <span class="other-layout">(AZERTY: Q S)</span><br>
         <b>Enter</b> Start, <b>Shift</b> Select<br>
         or a gamepad
     </div>

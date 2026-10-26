@@ -44,6 +44,11 @@ The page shows the game and nothing else:
 
 Keys: arrows to move, `Z` `X` `C` `V` for A B X Y, `A` `S` for L R, `Enter` for Start, `Shift` for Select (and `;` `'`
 `.` `/` for L2 R2 L3 R3). The shortcuts of the main page (quit, save, load, player choice, help...) do nothing here.
+
+Keys are bound by position, not by letter: the letters above are those of a QWERTY keyboard, and on AZERTY the same
+keys are `W` `X` `C` `V` and `Q` `S`. The `?` help shows the player's own letters when the browser can tell the
+layout, which only Chromium-based browsers do (Keyboard Map API); in an iframe, its `allow` attribute must then include
+`keyboard-map`. Elsewhere the help shows both the QWERTY and the AZERTY letters.
 A gamepad works too, buttons by position (the bottom button is B, as on a SNES pad), and its left stick works as a
 d-pad.
 
