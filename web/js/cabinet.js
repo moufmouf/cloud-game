@@ -86,7 +86,26 @@ addEventListener("pointerdown", unmute);
 addEventListener("focus", render);
 addEventListener("blur", render);
 
-// input: game keys only
+// input: game keys only, by position (e.code), so they sit in the same place on every keyboard layout
+
+// Show the player's own letters in the help. Only Chromium can tell the layout (Keyboard Map API), and in an iframe
+// only with allow="keyboard-map"; elsewhere the help keeps the QWERTY letters plus the AZERTY ones.
+navigator.keyboard?.getLayoutMap?.().then(
+    (layout) => {
+        const keys = [...document.querySelectorAll("#help [data-codes]")];
+        const labels = keys.map((el) =>
+            el.dataset.codes
+                .split(" ")
+                .map((code) => layout.get(code)?.toUpperCase()),
+        );
+        if (!labels.flat().every(Boolean)) return;
+        keys.forEach((el, i) => (el.textContent = labels[i].join(" ")));
+        document
+            .querySelectorAll("#help .other-layout")
+            .forEach((el) => el.remove());
+    },
+    () => {},
+);
 
 const keyMap = {
     ArrowUp: KEY.UP,
