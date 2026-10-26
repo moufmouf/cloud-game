@@ -14,6 +14,10 @@ on:
 jobs:
   docker-publish:
     runs-on: ubuntu-latest
+    # the repository's default token is read-only
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v3
       - run: echo "V=$(./scripts/version.sh)" >> $GITHUB_ENV
@@ -24,6 +28,7 @@ jobs:
           images: ghcr.io/${{ github.repository }}/cloud-game
           tags: |
             type=ref,event=branch
+            type=sha
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
