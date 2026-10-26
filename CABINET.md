@@ -1,8 +1,7 @@
 # Cabinet mode
 
 A cabinet is a room where the worker hands out the player slots, like an arcade machine in a shared space: the first
-people to arrive play, everyone else watches the same screen and waits for their turn. It was built to embed one game
-in a [WorkAdventure](https://workadventu.re) map, but any client can use it.
+people to arrive play, everyone else watches the same screen and waits for their turn.
 
 Rooms started without it behave as before: every user picks their own player index.
 
