@@ -131,7 +131,8 @@ to generate a permanent link to your game.
 
 A room can be started as a cabinet: the worker gives up to 4 player slots to the first people to arrive, everyone else
 watches, and the longest-waiting watcher takes over when a player leaves. It is made for one game shared by whoever
-stands in front of it. See [CABINET.md](CABINET.md).
+stands in front of it. The coordinator serves a page for it,
+`/cabinet.html?cabinet=<name>&game=<game name>&players=2`. See [CABINET.md](CABINET.md).
 
 ## Credits
 

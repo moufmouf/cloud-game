@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Arcade cabinet</title>
+    <!--
+        One game shared by whoever opens the same cabinet, see CABINET.md:
+        cabinet.html?cabinet=<globally unique name>&game=<ROM name>&players=<1 to 4>
+        The worker hands out the player slots, everyone else watches.
+    -->
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            color: #fff;
+            font: 14px/1.4 system-ui, sans-serif;
+        }
+
+        body {
+            display: grid;
+            place-items: center;
+        }
+
+        /* letterboxed in whatever shape the iframe has, never rotated, sharp pixels */
+        #stream {
+            --a: 4/3;
+            width: min(100vw, calc(100vh * (var(--a))));
+            aspect-ratio: var(--a);
+            object-fit: fill;
+            image-rendering: pixelated;
+        }
+
+        .corner {
+            position: fixed;
+            top: 8px;
+            padding: 2px 10px;
+            border-radius: 12px;
+            background: #0009;
+            font-weight: 600;
+        }
+
+        #badge {
+            left: 8px;
+        }
+
+        #badge.player {
+            color: #000;
+        }
+
+        #help {
+            right: 8px;
+            cursor: default;
+        }
+
+        #help > div {
+            display: none;
+            position: absolute;
+            right: 0;
+            margin-top: 6px;
+            padding: 8px 12px;
+            border-radius: 8px;
+            background: #000c;
+            font-weight: normal;
+            white-space: nowrap;
+        }
+
+        #help:hover > div {
+            display: block;
+        }
+
+        #hint {
+            position: fixed;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: #000a;
+            font-size: 18px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<video id="stream" playsinline></video>
+<div id="badge" class="corner">Connecting…</div>
+<div id="help" class="corner">?
+    <div>
+        <b>Arrows</b> move<br>
+        <b>Z X C V</b> A B X Y<br>
+        <b>A S</b> L R<br>
+        <b>Enter</b> Start, <b>Shift</b> Select<br>
+        or a gamepad
+    </div>
+</div>
+<div id="hint" hidden></div>
+
+<script type="importmap">
+    {
+      "imports": {
+        "api": "./js/api.js?v=3",
+        "event": "./js/event.js?v=3",
+        "input": "./js/input/keys.js?v=3",
+        "log": "./js/log.js?v=3",
+        "network": "./js/network/network.js?v=3"
+      }
+    }
+</script>
+<script type="module" src="js/cabinet.js?v=3"></script>
+</body>
+</html>
