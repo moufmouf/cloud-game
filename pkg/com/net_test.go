@@ -61,7 +61,10 @@ func testWebsocket(t *testing.T) {
 	client := newClient(t, url.URL{Scheme: "ws", Host: "localhost" + addr, Path: "/ws"})
 	clDone := client.ProcessPackets(func(in TestIn) error { return nil })
 
-	if server.conn == nil {
+	// the client can be connected before the server handler has stored its side
+	select {
+	case <-server.ready:
+	case <-time.After(5 * time.Second):
 		t.Fatalf("couldn't make new socket")
 	}
 
@@ -178,8 +181,9 @@ func checkCall(v []byte, err error, need any) error {
 }
 
 type serverHandler struct {
-	conn *websocket.Connection // ws server reference made dynamically on HTTP request
-	done chan struct{}
+	conn  *websocket.Connection // ws server reference made dynamically on HTTP request
+	done  chan struct{}
+	ready chan struct{} // closed once conn is set
 }
 
 func (s *serverHandler) serve(t *testing.T) func(w http.ResponseWriter, r *http.Request) {
@@ -193,12 +197,13 @@ func (s *serverHandler) serve(t *testing.T) func(w http.ResponseWriter, r *http.
 		s.conn = sock
 		s.conn.SetMessageHandler(func(m []byte, err error) { s.conn.Write(m) }) // echo
 		s.done = s.conn.Listen()
+		close(s.ready)
 	}
 }
 
 func newServer(addr string, t *testing.T) *serverHandler {
 	var wg sync.WaitGroup
-	handler := serverHandler{}
+	handler := serverHandler{ready: make(chan struct{})}
 	http.HandleFunc("/ws", handler.serve(t))
 	wg.Add(1)
 	go func() {
