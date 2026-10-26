@@ -106,6 +106,7 @@ application [installed](https://docs.docker.com/compose/install/).
 ## Technical documents
 
 - [Design document v2](DESIGNv2.md)
+- [Cabinet mode](CABINET.md)
 - [webrtchacks Blog: Open Source Cloud Gaming with WebRTC](https://webrtchacks.com/open-source-cloud-gaming-with-webrtc/)
 - [Wiki (outdated)](https://github.com/giongto35/cloud-game/wiki)
 - [Code Pointer Wiki](https://github.com/giongto35/cloud-game/wiki/Code-Deep-Dive)
@@ -125,6 +126,12 @@ By clicking these deep link, you can join the game directly and play it together
 
 And you can host the new game by yourself by accessing [cloudretro.io](https://cloudretro.io) and click "share" button
 to generate a permanent link to your game.
+
+## Cabinet mode, take turns at one game
+
+A room can be started as a cabinet: the worker gives up to 4 player slots to the first people to arrive, everyone else
+watches, and the longest-waiting watcher takes over when a player leaves. It is made for one game shared by whoever
+stands in front of it, for example in a WorkAdventure map. See [CABINET.md](CABINET.md).
 
 ## Credits
 
