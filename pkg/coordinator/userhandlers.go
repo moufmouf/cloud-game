@@ -1,11 +1,15 @@
 package coordinator
 
 import (
+	"path/filepath"
+	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/giongto35/cloud-game/v3/pkg/api"
 	"github.com/giongto35/cloud-game/v3/pkg/config"
+	"github.com/giongto35/cloud-game/v3/pkg/games"
 )
 
 func (u *User) HandleInitWebrtcStream(rq api.InitUserWebrtcStreamRequest) {
@@ -26,6 +30,21 @@ func (u *User) HandleWebrtcSignal(rq api.WebrtcSignalUser) {
 }
 
 func (u *User) HandleStartGame(rq api.GameStartUserRequest, conf config.CoordinatorConfig) {
+	// Refuse a game the worker doesn't have before reserving the worker: it would
+	// fail to start the game, and nothing would free the reservation.
+	if lib := u.w.AppNames(); lib != nil { // nil until the worker sends its library
+		name := rq.GameName
+		if rq.RoomId != "" {
+			name = games.ExtractGame(rq.RoomId) // as the worker does
+		}
+		if !slices.ContainsFunc(lib, func(g api.GameInfo) bool { return g.Name == name }) {
+			u.log.Warn().Str("game", name).Msg("unknown game")
+			u.w.pending.Drop(rq.RoomId)
+			u.Notify(api.ErrUnknownGame, suggestGame(name, lib))
+			return
+		}
+	}
+
 	// Worker slot / room gating:
 	// - If the worker is FREE, reserve its single slot and start the game.
 	// - If it is BUSY, only let through requests for the room it runs, or is
@@ -173,4 +192,16 @@ func (u *User) handleGetWorkerList(debug bool, info HasServerInfo) {
 		})
 	}
 	u.Notify(api.GetWorkerList, response)
+}
+
+// suggestGame returns the game a wrong name most likely meant: the same name in
+// another case, or without its file extension. Empty when there's none.
+func suggestGame(name string, lib []api.GameInfo) string {
+	base := strings.TrimSuffix(name, filepath.Ext(name))
+	for _, g := range lib {
+		if strings.EqualFold(g.Name, name) || strings.EqualFold(g.Name, base) {
+			return g.Name
+		}
+	}
+	return ""
 }

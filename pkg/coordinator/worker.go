@@ -63,6 +63,15 @@ func (p *pendingRoom) Set(id string) {
 	p.mu.Unlock()
 }
 
+// Drop forgets the room if the worker was picked for it.
+func (p *pendingRoom) Drop(id string) {
+	p.mu.Lock()
+	if p.id == id {
+		p.id = ""
+	}
+	p.mu.Unlock()
+}
+
 // Hosts tells whether the worker runs the room or is about to.
 func (w *Worker) Hosts(id string) bool { return id != "" && (w.RoomId == id || w.pending.Get() == id) }
 

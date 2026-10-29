@@ -7,6 +7,7 @@ import { log } from "log";
 import { socket, webrtc } from "network";
 
 const SLOT_CHANGE = 151;
+const UNKNOWN_GAME = 114;
 const COLORS = ["#ef5350", "#42a5f5", "#66bb6a", "#ffee58"];
 
 const params = new URLSearchParams(location.search);
@@ -26,6 +27,7 @@ const muteButton = document.getElementById("mute");
 let slot = null; // {index, queue}: index -1 is a watcher
 let status = "Connecting…";
 let playing = false;
+let error = ""; // why there's no game, shown in the middle of the screen
 let blocked = false; // the browser keeps the sound off until the user interacts with the page
 
 const render = () => {
@@ -40,15 +42,17 @@ const render = () => {
 
     // a click both focuses the iframe and allows sound
     let text = "";
-    if (isPlayer && !document.hasFocus()) text = "Click to play";
+    if (error) text = error;
+    else if (isPlayer && !document.hasFocus()) text = "Click to play";
     else if (playing && blocked) text = "Click for sound";
     hint.textContent = text;
     hint.hidden = !text;
 };
 
-const setStatus = (s) => {
+const fail = (short, why) => {
     slot = null;
-    status = s;
+    status = short;
+    error = why;
     render();
 };
 
@@ -275,7 +279,7 @@ const onMessage = ({ t, p }) => {
                 },
                 onDisconnect: () => {
                     webrtc.stop();
-                    setStatus("Disconnected, reload to retry");
+                    fail("Disconnected", "Disconnected, reload to retry");
                 },
                 signalling: {
                     init: api.server.initWebrtcStream,
@@ -305,7 +309,15 @@ const onMessage = ({ t, p }) => {
             render();
             break;
         case api.endpoint.GAME_ERROR_NO_FREE_SLOTS:
-            setStatus("All game machines are busy, try again later");
+            fail("Busy", "All game machines are busy, try again later");
+            break;
+        case UNKNOWN_GAME: // p: the game the name most likely meant, if any
+            fail(
+                "Unknown game",
+                p
+                    ? `There's no game "${game}". Did you mean "${p}"?`
+                    : `There's no game "${game}" on this server. Use the ROM file name, without its extension.`,
+            );
             break;
     }
 };
@@ -318,9 +330,9 @@ api.transport = {
 };
 
 if (!game) {
-    setStatus("No game set in the cabinet URL");
+    fail("No game", "No game set in the cabinet URL");
 } else if (cabinet.includes("___")) {
-    setStatus("The cabinet name can't contain ___");
+    fail("Bad cabinet name", "The cabinet name can't contain ___");
 } else {
     log.info(`[cabinet] room ${roomId}`);
     socket.init(roomId);

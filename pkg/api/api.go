@@ -80,6 +80,7 @@ const (
 	GetWorkerList    PT = 111
 	ErrNoFreeSlots   PT = 112
 	ResetGame        PT = 113
+	ErrUnknownGame   PT = 114
 	RegisterRoom     PT = 201
 	CloseRoom        PT = 202
 	TerminateSession PT = 204
@@ -117,6 +118,8 @@ func (p PT) String() string {
 		return "NoFreeSlots"
 	case ResetGame:
 		return "ResetGame"
+	case ErrUnknownGame:
+		return "UnknownGame"
 	case RegisterRoom:
 		return "RegisterRoom"
 	case CloseRoom:
