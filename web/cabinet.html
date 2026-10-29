@@ -7,7 +7,7 @@
     <title>Arcade cabinet</title>
     <!--
         One game shared by whoever opens the same cabinet, see CABINET.md:
-        cabinet.html?cabinet=<globally unique name>&game=<ROM name>&players=<1 to 4>
+        cabinet.html?cabinet=<globally unique name>&game=<ROM name>&players=<1 to 4>&volume=<0 to 100>
         The worker hands out the player slots, everyone else watches.
     -->
     <style>
@@ -37,7 +37,16 @@
         .corner {
             position: fixed;
             top: 8px;
-            padding: 2px 10px;
+            display: flex;
+            gap: 6px;
+        }
+
+        .pill {
+            display: flex;
+            align-items: center;
+            height: 24px;
+            box-sizing: border-box;
+            padding: 0 10px;
             border-radius: 12px;
             background: #0009;
             font-weight: 600;
@@ -51,14 +60,47 @@
             color: #000;
         }
 
-        #help {
+        #tools {
             right: 8px;
+        }
+
+        /* the slider opens on hover, the speaker mutes */
+        #sound > span {
+            display: flex;
+            width: 0;
+            overflow: hidden;
+            transition: width .15s;
+        }
+
+        #sound:hover > span, #sound:focus-within > span {
+            width: 86px;
+        }
+
+        #volume {
+            width: 80px;
+            margin: 0 6px 0 0;
+            accent-color: #fff;
+        }
+
+        #mute {
+            all: unset;
+            display: flex;
+            cursor: pointer;
+        }
+
+        #sound[data-level="0"] .wave, #sound[data-level="1"] .wave2, #sound:not([data-level="0"]) .cross {
+            display: none;
+        }
+
+        #help {
+            position: relative;
             cursor: default;
         }
 
         #help > div {
             display: none;
             position: absolute;
+            top: 100%;
             right: 0;
             margin-top: 6px;
             padding: 8px 12px;
@@ -88,8 +130,21 @@
 </head>
 <body>
 <video id="stream" playsinline></video>
-<div id="badge" class="corner">Connecting…</div>
-<div id="help" class="corner">?
+<div id="badge" class="corner pill">Connecting…</div>
+<div id="tools" class="corner">
+<div id="sound" class="pill">
+    <span><input id="volume" type="range" min="0" max="100" aria-label="Volume"></span>
+    <button id="mute" aria-label="Mute">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M2 6h2.5L8 3v10L4.5 10H2z" fill="currentColor"/>
+            <path class="wave" d="M10.5 6a3 3 0 0 1 0 4"/>
+            <path class="wave wave2" d="M12.5 4a6 6 0 0 1 0 8"/>
+            <path class="cross" d="M10.5 6l4 4m0-4l-4 4"/>
+        </svg>
+    </button>
+</div>
+<div id="help" class="pill">?
     <div>
         <b>Arrows</b> move<br>
         <!-- keys are bound by position: cabinet.js puts the player's own letters here when the browser tells it -->
@@ -98,6 +153,7 @@
         <b>Enter</b> Start, <b>Shift</b> Select<br>
         or a gamepad
     </div>
+</div>
 </div>
 <div id="hint" hidden></div>
 
