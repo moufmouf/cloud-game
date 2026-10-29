@@ -13,14 +13,20 @@ const params = new URLSearchParams(location.search);
 const cabinet = params.get("cabinet") || "cabinet";
 const game = params.get("game") || "";
 const players = Math.min(Math.max(parseInt(params.get("players")) || 4, 1), 4);
+const percent = (s) =>
+    isNaN(parseInt(s)) ? null : Math.min(Math.max(parseInt(s), 0), 100);
 
 const video = document.getElementById("stream");
 const badge = document.getElementById("badge");
 const hint = document.getElementById("hint");
+const sound = document.getElementById("sound");
+const slider = document.getElementById("volume");
+const muteButton = document.getElementById("mute");
 
 let slot = null; // {index, queue}: index -1 is a watcher
 let status = "Connecting…";
 let playing = false;
+let blocked = false; // the browser keeps the sound off until the user interacts with the page
 
 const render = () => {
     const isPlayer = slot?.index >= 0;
@@ -35,7 +41,7 @@ const render = () => {
     // a click both focuses the iframe and allows sound
     let text = "";
     if (isPlayer && !document.hasFocus()) text = "Click to play";
-    else if (playing && video.muted) text = "Click for sound";
+    else if (playing && blocked) text = "Click for sound";
     hint.textContent = text;
     hint.hidden = !text;
 };
@@ -46,15 +52,64 @@ const setStatus = (s) => {
     render();
 };
 
+// sound: the volume the user last chose on this site, or the one in the URL (0 is muted)
+
+const VOLUME_KEY = "cabinet-volume";
+const saved = () => {
+    try {
+        return localStorage.getItem(VOLUME_KEY);
+    } catch {
+        return null; // storage blocked
+    }
+};
+const urlVolume = percent(params.get("volume"));
+let volume = percent(saved()) ?? urlVolume ?? 100;
+let unmutedVolume = volume || urlVolume || 100; // what the speaker brings back
+
+const applySound = () => {
+    video.muted = blocked || !volume;
+    video.volume = volume / 100;
+    slider.value = volume;
+    sound.dataset.level = video.muted ? 0 : volume < 50 ? 1 : 2;
+    muteButton.ariaLabel = video.muted ? "Unmute" : "Mute";
+    render();
+};
+const setVolume = (v) => {
+    volume = v;
+    if (v) unmutedVolume = v;
+    try {
+        localStorage.setItem(VOLUME_KEY, v);
+    } catch {}
+    applySound();
+};
+
+slider.addEventListener("input", () => setVolume(+slider.value));
+slider.addEventListener("change", () => slider.blur()); // leave the keys to the game
+muteButton.addEventListener("click", () => {
+    if (blocked) {
+        blocked = false;
+        if (!volume) setVolume(unmutedVolume);
+    } else setVolume(volume ? 0 : unmutedVolume);
+    applySound();
+    muteButton.blur();
+});
+
+// iPhone and iPad ignore the volume, only muting works there
+video.volume = 0.5;
+if (video.volume !== 0.5) slider.parentElement.remove();
+applySound();
+
 // video
 
 const play = () => {
-    video.muted = false;
+    blocked = false;
+    applySound();
     video
         .play()
         .catch(() => {
             // no sound before the user interacts with the page
-            video.muted = true;
+            blocked = true;
+            applySound();
             return video.play();
         })
         .then(
@@ -77,12 +132,16 @@ video.addEventListener("resize", () => {
 });
 
 const unmute = () => {
-    if (playing && video.muted) {
-        video.muted = false;
-        render();
+    if (playing && blocked) {
+        blocked = false;
+        applySound();
     }
 };
-addEventListener("pointerdown", unmute);
+// the speaker handles its own clicks
+addEventListener(
+    "pointerdown",
+    (e) => muteButton.contains(e.target) || unmute(),
+);
 addEventListener("focus", render);
 addEventListener("blur", render);
 
