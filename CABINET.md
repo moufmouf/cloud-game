@@ -41,6 +41,8 @@ The page shows the game and nothing else:
 - a badge in the top-left corner: `P1` to `P4` in the player's colour, or `Watching · #2 in line`;
 - "Click to play" while a player's page doesn't have the keyboard (in an iframe, until they click it), and "Click for
   sound" while the browser keeps the sound off;
+- why there is no game, in the middle of the screen: an unknown game (with the right name when the URL only got its
+  extension or case wrong, e.g. `game=Super Game (U).sfc`), all game machines busy, or a lost connection;
 - in the top-right corner, a speaker and a `?`. Hovering the speaker shows a volume slider, clicking it mutes and
   unmutes. The page remembers the volume the user picks; browsers keep that separately for each site that embeds the
   page in an iframe. iPhones and iPads don't let a page change the volume, so there the speaker only mutes;
@@ -73,6 +75,13 @@ deep links of the main page; the room id is refused without it.
 
 `players` only counts in the request that creates the room. Values above 4 are lowered to 4, and 0 (or no value)
 makes an ordinary room.
+
+A game the worker doesn't have is refused with packet type 114 instead of a start response, in any room. Its payload
+is the game the name most likely meant (the same name without a file extension, or in another case), or `""`:
+
+```json
+{"t": 114, "p": "Super Game"}
+```
 
 **Read your slot** in the game start response:
 

@@ -113,3 +113,49 @@ func TestCloseRoomFreesUnregisteredRoom(t *testing.T) {
 		t.Error("the worker is still held by a room that never started")
 	}
 }
+
+func TestStartGameRefusesUnknownGame(t *testing.T) {
+	h, ww := newTestHub(1)
+	w := ww[0]
+	w.SetLib([]api.GameInfo{{Name: "Super Game (U)"}})
+	room := "cab___Super Game (U).sfc" // a file name instead of the game name
+	h.findWorkerFor(nil, roomQuery(room), logger.Default())
+
+	u, conn := newTestUser(w)
+	u.HandleStartGame(api.GameStartUserRequest{RoomId: room, GameName: "Super Game (U).sfc"}, config.CoordinatorConfig{})
+
+	if !conn.got(api.ErrUnknownGame) {
+		t.Error("the user wasn't told the game is unknown")
+	}
+	if w.Connection.(*fakeConn).got(api.StartGame) {
+		t.Error("the unknown game was sent to the worker")
+	}
+	if !w.HasSlot() || w.Hosts(room) {
+		t.Fatal("the worker is still held for a game it doesn't have")
+	}
+
+	other := "other___Super Game (U)"
+	if h.findWorkerFor(nil, roomQuery(other), logger.Default()) != w {
+		t.Fatal("the worker isn't free for another cabinet")
+	}
+	u2, conn2 := newTestUser(w)
+	u2.HandleStartGame(api.GameStartUserRequest{RoomId: other}, config.CoordinatorConfig{})
+	if conn2.got(api.ErrUnknownGame) || !w.Connection.(*fakeConn).got(api.StartGame) {
+		t.Error("a known game didn't start")
+	}
+}
+
+func TestSuggestGame(t *testing.T) {
+	lib := []api.GameInfo{{Name: "Supercooked! (J) (v1.2)"}, {Name: "anguna"}}
+	for name, want := range map[string]string{
+		"Supercooked! (J) (v1.2).sfc": "Supercooked! (J) (v1.2)",
+		"Anguna":                      "anguna",
+		"anguna.gba":                  "anguna",
+		"Tetris":                      "",
+		"":                            "",
+	} {
+		if got := suggestGame(name, lib); got != want {
+			t.Errorf("suggestGame(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
