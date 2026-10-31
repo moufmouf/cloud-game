@@ -29,6 +29,7 @@ func run() {
 	}
 	w.Start(done)
 	<-done
+	w.Drain(os.ExpectTermination()) // a second signal stops at once
 	if err := w.Stop(); err != nil {
 		log.Error().Err(err).Msg("shutdown fail")
 	}

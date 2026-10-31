@@ -112,6 +112,7 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 
 		r = room.NewRoom(uid, nil, w.router.Users(), nil)
 		r.HandleClose = func() {
+			w.agones.Ready()
 			c.CloseRoom(uid)
 			c.log.Debug().Msgf("room close request %v sent", uid)
 		}
@@ -123,6 +124,9 @@ func (c *coordinator) HandleGameStart(rq api.StartGameRequest, w *Worker) api.Ou
 
 		w.router.SetPlayers(min(rq.Players, nanoarch.MaxPort))
 		w.router.SetRoom(r)
+		// ponytail: Agones still counts the worker as free between the coordinator picking it and this game start (a
+		// few seconds), so a scale-down could stop it then; allocate when the coordinator picks it if that ever shows
+		w.agones.Allocate()
 		c.log.Info().Str("room", r.Id()).Str("game", game.Name).Msg("New room")
 
 		// start the emulator
