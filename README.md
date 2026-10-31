@@ -103,6 +103,20 @@ cloud. This script (deploy-app.sh) allows pushing configured application to the 
 cloud server should be any Debian-based system with the docker-compose
 application [installed](https://docs.docker.com/compose/install/).
 
+A worker asked to stop waits for its running game to end (a second signal stops it at once). Give it the time for
+that: `stop_grace_period` in Docker Compose, `terminationGracePeriodSeconds` in Kubernetes.
+
+### Kubernetes with Agones (optional)
+
+Workers can run as an [Agones](https://agones.dev) Fleet, so that an autoscaler keeps idle workers ready. Nothing
+changes elsewhere: a worker turns this on only when Agones runs it (Agones sets `AGONES_SDK_HTTP_PORT`). Then it:
+
+- listens for WebRTC on the game server's first port. Declare it with `portPolicy: Passthrough` and `protocol: UDP`,
+  and set `CLOUD_GAME_WEBRTC_ICEIPMAP` to the node's public IP (`status.hostIP`);
+- tells Agones it's Ready once connected to the coordinator, Allocated when a game starts and Ready again when it ends,
+  so a Buffer FleetAutoscaler keeps the number of idle workers you ask for and never removes a busy one;
+- sends a health ping every 2 s.
+
 ## Technical documents
 
 - [Design document v2](DESIGNv2.md)

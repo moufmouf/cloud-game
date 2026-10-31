@@ -11,6 +11,7 @@ import (
 	"github.com/giongto35/cloud-game/v3/pkg/monitoring"
 	"github.com/giongto35/cloud-game/v3/pkg/network/httpx"
 	"github.com/giongto35/cloud-game/v3/pkg/network/webrtc"
+	"github.com/giongto35/cloud-game/v3/pkg/worker/agones"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/caged"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/cloud"
 	"github.com/giongto35/cloud-game/v3/pkg/worker/room"
@@ -18,6 +19,7 @@ import (
 
 type Worker struct {
 	address  string
+	agones   *agones.SDK // nil unless Agones runs the worker
 	conf     config.WorkerConfig
 	cord     *coordinator
 	lib      games.GameLibrary
@@ -42,12 +44,23 @@ func New(conf config.WorkerConfig, log *logger.Logger) (*Worker, error) {
 	library := games.NewLib(conf.Library, conf.Emulator, log)
 	library.Scan()
 
+	sdk := agones.New(log)
+	if sdk != nil {
+		port, err := sdk.Port()
+		if err != nil {
+			return nil, err
+		}
+		conf.Webrtc.SinglePort = port // the node port Agones picked (Passthrough)
+		log.Info().Msgf("Agones game server, WebRTC on port %v", port)
+	}
+
 	rtc, err := webrtc.NewApiFactory(conf.Webrtc, log, nil)
 	if err != nil {
 		return nil, fmt.Errorf("webrtc init fail: %w", err)
 	}
 
 	worker := &Worker{
+		agones:   sdk,
 		conf:     conf,
 		lib:      library,
 		launcher: games.NewGameLauncher(library),
@@ -130,11 +143,31 @@ func (w *Worker) Start(done chan struct{}) {
 				wait := w.cord.HandleRequests(w)
 				w.cord.SendLibrary(w)
 				w.cord.SendPrevSessions(w)
+				w.agones.Ready()
 				<-wait
 				retryStep = 5 * time.Second
 			}
 		}
 	}()
+}
+
+// Drain waits for the running game to end, so that stopping a busy worker doesn't cut its game. It only helps when
+// the worker gets time to stop (Kubernetes terminationGracePeriodSeconds, Docker stop_grace_period).
+func (w *Worker) Drain(now chan struct{}) {
+	r := w.router.Room()
+	if r == nil {
+		return
+	}
+	w.log.Info().Msg("Waiting for the game to end before stopping")
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+	for w.router.Room() == r { // a game started after this one is cut
+		select {
+		case <-now:
+			return
+		case <-t.C:
+		}
+	}
 }
 
 func (w *Worker) Stop() error {
